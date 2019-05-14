@@ -3,6 +3,9 @@ import bodyParser from 'body-parser';
 import cors from 'cors';
 import path from 'path';
 import morgan from 'morgan';
+import models, { sequelize } from './models';
+import createAuthorsWithPolls from './polls';
+
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // ░░█▀█▐▀█░▐▀▀▌░▀█▀░░▀▀▀▌░░░▌░░
@@ -47,7 +50,25 @@ app.get('/new', (req, res) => {
 // ░░▌░░▐░▐░▐░░▌░░▌░░░▄▄▄▌█░░▌░░
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // DEFAULT INDEX ROUTE
+// sync Sequelize
+const eraseDatabaseOnSync = true;
+sequelize.sync({ force: eraseDatabaseOnSync }).then(async () => {
+  if (eraseDatabaseOnSync) {
+    createAuthorsWithPolls();
+  }
+});
+// default index route
+app.get('/', (req, res) => {
+  models.Poll.findAll({
+    include: [{ model: models.Author }],
 
+  })
+    .then((polls) => {
+      res.render('index', { polls });
+    }).catch((error) => {
+      res.send(`error: ${error}`);
+    });
+});
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // ░░█▀█▐▀█░▐▀▀▌░▀█▀░░▀▀▀▌░░░▀▀▌░░
@@ -56,7 +77,12 @@ app.get('/new', (req, res) => {
 // ░░▌░░▐░▐░▐░░▌░░▌░░░▄▄▄▌█░░█▄▄░░
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // POST /new
-
+app.post('/new', (req, res) => {
+  const newpoll = {
+    text: req.body.text,
+    imageURL: req.body.imageURL,
+  };
+});
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // ░░█▀█▐▀█░▐▀▀▌░▀█▀░░▀▀▀▌░░▀▀▌░░
@@ -66,6 +92,19 @@ app.get('/new', (req, res) => {
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // POST vote/:id
 
+app.post('/vote/:id', (req, res) => {
+  const vote = (req.body.vote === 'up');
+
+  models.Poll.findByPk(req.params.id).then((poll) => {
+    console.log(`updating vote: ${poll} ${vote}`);
+    if (vote) {
+      poll.increment('upvotes');
+    } else {
+      poll.increment('downvotes');
+    }
+    res.send(poll);
+  });
+});
 
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // ░░█▀█▐▀█░▐▀▀▌░▀█▀░░▀▀▀▌░░▌░▌░░░
@@ -74,7 +113,17 @@ app.get('/new', (req, res) => {
 // ░░▌░░▐░▐░▐░░▌░░▌░░░▄▄▄▌█░░░▌░░░
 // ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 // GET author's posts
-
+app.get('/author/:id', (req, res) => {
+  models.Poll.findAll({
+    where: { authorId: req.params.id },
+    include: [{ model: models.Author }],
+  })
+    .then((polls) => {
+      res.render('index', { polls });
+    }).catch((error) => {
+      res.send(`error: ${error}`);
+    });
+});
 // START THE SERVER
 // =============================================================================
 const port = process.env.PORT || 9090;
